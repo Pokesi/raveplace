@@ -68,8 +68,14 @@ export function ConnectWallet({ data, style }: BtnProps) {
 
     const provider = new ethers.providers.Web3Provider(window.ethereum, 250);
     let signer = provider.getSigner();
+    set(signer);
     let accounts = await provider.send("eth_requestAccounts", []);
     let account = accounts[0];
+    setAcctData({
+      signer: signer,
+      account: account,
+      name: false
+    });
     const name = await rave.reverse(account);
 
     setAcctData({
@@ -77,8 +83,6 @@ export function ConnectWallet({ data, style }: BtnProps) {
       account: account,
       name: name.name,
     });
-
-    set(signer);
 
     console.log(acctData);
   };

@@ -58,7 +58,7 @@ export function Home() {
   };
 
   const to5 = (array: any) => {
-    return array.slice(0, 4);
+    return array.slice(array.length - 4, array.length);
   };
 
   document.title = "RavePlace"

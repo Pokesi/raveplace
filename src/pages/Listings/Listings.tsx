@@ -29,7 +29,7 @@ export function Listings({
   const [contract, setContract]: [Contract | undefined, any] = useState(
     makeContract({
       signerOrProvider: signer,
-      address: "0x000000000000000000000000000000000",
+      address: "0x1A8D16c2e9398BcD43DbE6Cb2d7aa846ce3D131d",
     })
   );
   const [allListings, setAllListings]: [string[][] | undefined, any] = useState(
@@ -69,26 +69,21 @@ export function Listings({
       } catch (e) {
         listings = ["0xLabs", "z.ftm", "amazon.ftm"];
       }
+      console.log('Listings pre-thing:',listings);
+      if (listings === ['']) listings = ["0xLabs", "z.ftm", "amazon.ftm"]
+      console.log('Listings post-thing:',listings);
       console.log(listings.length);
-      let newListings = listings.slice();
+      let newListings: string[] | string[][];
       if (category) {
         newListings = listings.filter((listing: string) =>
           // idk why so many parentheses
           whatIsRaw(listing).includes(category)
         );
-        /* Here for reference.
-        for (let i=0; listings.length > i; i++) {
-          console.log('Index:', i);
-          console.log('Testing:', listings[i]);
-          console.log('Includes:', whatIsRaw(listings[i]).includes(category));
-          if (!((whatIsRaw(listings[i]).includes(category)))) {
-            console.log('Removed:', listings[i]);
-            tempListings = newListings.splice(i, 1);
-            console.log('Listings ; newListings', listings , ';', newListings)
-          }
-        }
-        */
+      } else {
+        newListings = listings;
       }
+      console.log('NewListings pre-thing:',newListings);
+      console.log(  Math.ceil((newListings.length + Number.EPSILON) / 5))
       // @dev Credit: https://typeofnan.dev/how-to-split-an-array-into-a-group-of-arrays-in-javascript/
       const result = new Array(
         Math.ceil((newListings.length + Number.EPSILON) / 5)
@@ -97,19 +92,20 @@ export function Listings({
         .fill("")
         // For each group, grab the right `slice` of the input array
         .map((_, i) => newListings.slice(i * 5, (i + 1) * 5));
-
-      setAllListings(result);
+      console.log('NewListings post-thing:',result);
+      setAllListings(newListings);
     };
     setContract(
       makeContract({
         signerOrProvider: signer,
-        address: "0x000000000000000000000000000000000",
+        address: "0x1A8D16c2e9398BcD43DbE6Cb2d7aa846ce3D131d",
       })
     );
     getAllListings();
   }, [signer]);
 
   const whatIs = (name: string) => {
+    console.log(name);
     let is = [];
     if (/[a-zA-Z0-9]*\.ftm/gm.test(name)) {
       is.push(".ftm Name");
@@ -133,6 +129,7 @@ export function Listings({
   };
 
   const whatIsRaw = (name: string) => {
+    console.log(name);
     let is = [];
     if (/[a-zA-Z0-9]*\.ftm/gm.test(name)) {
       is.push("ftm");
@@ -152,9 +149,10 @@ export function Listings({
     if (is500(name)) {
       is.push("fortune500");
     }
-    console.log(is, name);
     return is;
   };
+
+  console.log('all',allListings);
 
   return (
     <Wrapper>
@@ -169,11 +167,13 @@ export function Listings({
       <Stack direction="column">
         {/* @ts-ignore */}
         {allListings.map(function (item, index) {
+          console.log('Map#1:', item, index)
           /* \/ This maps the 5 in the split arrays */
           return (
             <Stack direction="row">
               {/* @ts-ignore */}
               {item.map(function (name, key) {
+                console.log('Map#2:', name, key)
                 return (
                   <Link to={`/name/${name}`}>
                     <Card height="40vh" width="45vh" darker={true}>

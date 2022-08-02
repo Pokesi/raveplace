@@ -1,18 +1,22 @@
 import React, { useState, useEffect, useContext } from "react";
 import { Ag, GradientAngle } from "../../components/styles/Gradient";
 import { Card } from "../../components/styles/Card";
-import { Button, Avatar, Typography } from "@ensdomains/thorin";
+import { Button, Avatar, Typography, Modal, Card as ThorinCard } from "@ensdomains/thorin";
 import styled from "styled-components";
 import { Link, useParams } from "react-router-dom";
 import Stack from "@mui/material/Stack";
 import { WalletContext } from "../../App";
 import { truncateAddress } from "../../utils/truncateAddress";
 import { Rave } from "@rave-names/rave";
+import type { Contract } from 'ethers';
+import { ethers } from 'ethers';
 import type { RaveName } from "@rave-names/rave";
 import { is500 } from "../Listings/fortune500";
 import { useLocalStorage } from "react-use-storage";
+import { makeContract as c } from "../../contracts/RaveMarket";
+import { makeContract as r } from "../../contracts/Rave";
 
-const rave = new Rave();
+const ravejs = new Rave();
 
 const LinkButton = styled(Button)`
   background: linear-gradient(90deg, #e8dab2, #d4d8c9, #c0d6df);
@@ -43,22 +47,90 @@ const saveToStorage = (name: string) => {
   window.localStorage.setItem("names", JSON.stringify(gotten));
 };
 
+interface Modals {
+  list: boolean;
+  offer: boolean;
+}
+
+interface Listing {
+  name: string;
+  value: number;
+  expireTimestamp: number;
+  active: boolean;
+}
+
 export function Name() {
   const { signer, set } = useContext(WalletContext);
   const [wallet, setWallet]: [any, any] = useState();
-  const [nameData, setNameData]: [RaveName | undefined,any] = useState();
+  const [nameData, setNameData]: [RaveName | undefined, any] = useState();
+  const [contract, setContract]: [Contract | undefined, any] = useState(
+    c({
+      signerOrProvider: signer,
+      address: "0x1A8D16c2e9398BcD43DbE6Cb2d7aa846ce3D131d",
+    })
+  );
+  const [rave, setRave]: [Contract | undefined, any] = useState(
+    r({
+      signerOrProvider: signer,
+      address: "0x6a403ffbbf8545ee0d99a63a72e5f335dfcae2bd",
+    })
+  )
+  // was meant to be wallet but eh
+  const [owner, setOwner]: [string, any] = useState(""); // can be initialised as not undefined because we'll only use it in === operations
   const { name } = useParams();
+  const [ modals, setModals ]: [Modals, any] = useState({
+    list: false,
+    offer: false
+  });
+  const [ stage, setStage ]: [number, any] = useState(0);
+  const [ input, setInput ]: [any, any] = useState();
+  const [ loading, setLoading ]: [boolean, any] = useState(false);
+  const [ listed, setListed ]: [boolean, any] = useState(false);
+  const [ listing, setListing ]: [Listing | undefined, any] = useState();
 
   document.title = `RavePlace: ${name}`;
 
   useEffect(() => {
     const getData = async () => {
-      return await rave.reverse(await rave.resolveStringToAddress(name as string));
+      return await ravejs.reverse(await ravejs.resolveStringToAddress(name as string));
+    }
+
+    const getListing = async () => {
+      if (
+        // @ts-ignore
+        (await contract.functions.isListed(name.toUpperCase()))[0]
+      ) {
+        setListed(true);
+        // @ts-ignore
+        setListing(await contract.functions.getListing(name.toUpperCase()))
+      } else {
+        setListed(false);
+      }
+      // @ts-ignore
+      console.log(await contract.functions.isListed(name.toUpperCase()))
     }
 
     saveToStorage(name as string);
     getData().then(res => setNameData(res));
-  }, []);
+    try {
+      signer.getAddress().then((res: any) => setOwner(res));
+    } catch (e) {
+      setOwner('');
+    }
+    setContract(
+      c({
+        signerOrProvider: signer,
+        address: "0x1A8D16c2e9398BcD43DbE6Cb2d7aa846ce3D131d",
+      })
+    );
+    setRave(
+      r({
+        signerOrProvider: signer,
+        address: "0x6a403ffbbf8545ee0d99a63a72e5f335dfcae2bd",
+      })
+    );// need to create a new contract every time the signer updates
+    getListing();
+  }, [signer]);
 
   console.log(nameData)
 
@@ -105,7 +177,13 @@ export function Name() {
     return is.join(", ");
   };
 
+  const change = (e: any) => {
+    setInput(e.target.value)
+  }
+
   //  if (wallet) ((new Rave()).reverse(wallet)).then(res => setName(res.name));
+  // @ts-ignore
+  const isOwner = (owner === ((typeof nameData != "undefined") ? nameData.owner : "0x0"));
 
   return (
     <Wrapper>
@@ -119,6 +197,115 @@ export function Name() {
       >
         <Ag>{name}</Ag>
       </h1>
+      <Modal open={modals.list} onDismiss={() => {setModals({list: false, offer: false})}}>
+        <ThorinCard style={{
+          width: '40vw',
+          height: '40vh'
+        }}>
+          <Typography as="h1" style={{
+            fontSize: '52px',
+            marginBottom: '2vh'
+          }}>
+            List {name}
+          </Typography>
+          <Stack direction="row">
+            <input type="number" style={{
+              width: '25vw',
+              marginRight: '2vw',
+              fontSize: '36px',
+              border: '1px solid #888888',
+              padding: '5px',
+              borderRadius: '15px',
+              paddingLeft: '9px',
+            }}
+            value={input}
+            onChange={change}/>
+            <Button style={{
+              width: '10vw'
+            }}
+            loading={loading}
+            onClick={async () => {
+              if (stage === 0) {
+                setLoading(true);
+                // @ts-ignore
+                await rave.functions.approveName(name.toUpperCase(), owner, contract.address);
+                setLoading(false);
+                setStage(stage + 1);
+              } else if (stage === 1) {
+                setLoading(true);
+                // @ts-ignore
+                await contract.functions.listName(name.toUpperCase(), input as number, (~~(Date.now() / 1000) + 31536000), {value: ethers.utils.parseEther('1')}); //list for a year
+                setLoading(false);
+                setStage(stage + 1);
+              }
+            }}
+            >List (Stage {stage}/2)</Button>
+          </Stack>
+          <Button onClick={() => {
+            setModals({
+              list: false,
+              offer: false,
+            });
+            setLoading(false);
+          }}
+          style={{
+            width: "99%",
+            marginTop: "5vh"
+          }}>Close</Button>
+        </ThorinCard>
+      </Modal>
+      <Modal open={modals.offer} onDismiss={() => {setModals({list: false, offer: false})}}>
+        <ThorinCard style={{
+          width: '40vw',
+          height: '40vh'
+        }}>
+          <Typography as="h1" style={{
+            fontSize: '52px'
+          }}>
+            Offer for {name}
+          </Typography>
+          <Typography as="h3" style={{
+            marginBottom: '2vh'
+          }}>
+            Offers last for 7 days, the owner of {name} must approve it before accepting the offer
+          </Typography>
+          <Stack direction="row">
+            <input type="number" style={{
+              width: '25vw',
+              marginRight: '2vw',
+              fontSize: '36px',
+              border: '1px solid #888888',
+              padding: '5px',
+              borderRadius: '15px',
+              paddingLeft: '9px',
+            }}
+            value={input}
+            onChange={change}/>
+            <Button style={{
+              width: '10vw'
+            }}
+            loading={loading}
+            onClick={async () => {
+              setLoading(true);
+              // @ts-ignore
+              await contract.functions.makeOffer(name.toUpperCase(), ethers.utils.parseEther((input).toString()), (~~(Date.now() / 1000) + 604800), owner, {value: ethers.utils.parseEther((input).toString())}); //list for a week
+              setLoading(false);
+            }}
+            >Offer</Button>
+          </Stack>
+          <Button onClick={() => {
+            setModals({
+              list: false,
+              offer: false,
+            });
+            setLoading(false);
+          }}
+          style={{
+            width: "99%",
+            marginTop: "5vh"
+          }}>Close</Button>
+        </ThorinCard>
+      </Modal>
       <Stack direction="row" style={{ width: "60vh" }}>
         <GradientAngle>
           <div style={{ width: "22vw" }}>
@@ -129,14 +316,41 @@ export function Name() {
         </GradientAngle>
         <Stack direction="column">
           <div style={{ marginLeft: '2vh' }}>
-            <Card height="25vh" width="65vw">
-              <Stack direction="column" style={{
-                alignItems: 'center'
-              }}>
-                <Typography as="h1">No active listings.</Typography>
-                <LinkButton>Offer</LinkButton>
-              </Stack>
-            </Card>
+            <Stack direction="row">
+              {listed && <Card height="25vh" width="30.25vw">
+                <Typography as="h1" style={{
+                  fontSize: '42px'
+                }}>
+                  {name} is Listed
+                </Typography>
+                <Stack direction="row">
+                  <Typography as="h1" style={{
+                    fontSize: '31px',
+                  }}>
+                    {/* @ts-ignore MFW THIS SHIT*/}
+                    Price: {listing.value}
+                  </Typography>
+                  <LinkButton onClick={() => {
+                    // @ts-ignore MFW THIS SHIT
+                    contract.functions.buyName(name.toUpperCase(), owner, {value: ethers.utils.parseEther(listing.value.toString())});
+                  }}>Buy!</LinkButton>
+                </Stack>
+              </Card>}
+              <Card height="25vh" width={listed ? "34vw" : "66vw"}>
+                <Stack direction="column" style={{
+                  alignItems: 'center'
+                }}>
+                  <Typography as="h3">
+                    Actions
+                  </Typography>
+                  <Stack direction="row">
+                    <LinkButton onClick={() => {setModals({list: false, offer: true})}}>Offer</LinkButton>
+                    {/* @ts-ignore */}
+                    {isOwner && <LinkButton onClick={() => {setModals({list: true, offer: false})}}>List</LinkButton>}
+                  </Stack>
+                </Stack>
+              </Card>
+            </Stack>
           </div>
           <div style={{ marginLeft: '2vh' }}>
             <Card height="25vh" width="67vw">
