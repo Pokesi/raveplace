@@ -1,5 +1,6 @@
 import { makeContract } from "../../contracts/RaveMarket";
 import { Ag, Gradient, GradientAngle, Card } from "../../components/styles";
+import { Typography } from "@ensdomains/thorin";
 import React, { useState, useEffect, useContext } from "react";
 import type { Contract } from "ethers";
 import { WalletContext } from "../../App";
@@ -7,6 +8,15 @@ import { is500 } from "./fortune500";
 import { Link } from "react-router-dom";
 import styled from "styled-components";
 import Stack from "@mui/material/Stack";
+import InputLabel from '@mui/material/InputLabel';
+import MenuItem from '@mui/material/MenuItem';
+import Select, { SelectChangeEvent } from '@mui/material/Select';
+import InputBase from '@mui/material/InputBase';
+
+const BootstrapInput = styled(InputBase)`
+  borderRadius: 15px;
+  border: 1px solid #888888;
+`
 
 const Wrapper = styled.div`
   margin: 2vh;
@@ -35,6 +45,7 @@ export function Listings({
   const [allListings, setAllListings]: [string[][] | undefined, any] = useState(
     [["0xLoading", "loading.ftm"]]
   );
+  const [ input, setInput ]: [string, any] = useState("");
 
   let title;
   switch (category) {
@@ -65,25 +76,28 @@ export function Listings({
     const getAllListings = async () => {
       let listings;
       try {
-        listings = await contract.functions.getAllListings();
+        listings = (await contract.functions.getAllListings())[0];
       } catch (e) {
         listings = ["0xLabs", "z.ftm", "amazon.ftm"];
       }
-      console.log('Listings pre-thing:',listings);
       if (listings === ['']) listings = ["0xLabs", "z.ftm", "amazon.ftm"]
-      console.log('Listings post-thing:',listings);
-      console.log(listings.length);
-      let newListings: string[] | string[][];
+      let newListings: string[];
       if (category) {
         newListings = listings.filter((listing: string) =>
           // idk why so many parentheses
-          whatIsRaw(listing).includes(category)
+          whatIsRaw(listing.toLowerCase()).includes(category)
         );
       } else {
-        newListings = listings;
+        newListings = [...listings];
+        newListings.shift();
       }
-      console.log('NewListings pre-thing:',newListings);
-      console.log(  Math.ceil((newListings.length + Number.EPSILON) / 5))
+      newListings = newListings.filter((listing: string) =>
+        // idk why so many parentheses
+        listing.toLowerCase().startsWith(input as string)
+      );
+      for (let i=0; i < newListings.length; i++) {
+        newListings[i] = newListings[i].toLowerCase();
+      }
       // @dev Credit: https://typeofnan.dev/how-to-split-an-array-into-a-group-of-arrays-in-javascript/
       const result = new Array(
         Math.ceil((newListings.length + Number.EPSILON) / 5)
@@ -92,8 +106,8 @@ export function Listings({
         .fill("")
         // For each group, grab the right `slice` of the input array
         .map((_, i) => newListings.slice(i * 5, (i + 1) * 5));
-      console.log('NewListings post-thing:',result);
-      setAllListings(newListings);
+
+      setAllListings(result);
     };
     setContract(
       makeContract({
@@ -102,10 +116,9 @@ export function Listings({
       })
     );
     getAllListings();
-  }, [signer]);
+  }, [signer, category, input]);
 
   const whatIs = (name: string) => {
-    console.log(name);
     let is = [];
     if (/[a-zA-Z0-9]*\.ftm/gm.test(name)) {
       is.push(".ftm Name");
@@ -152,7 +165,10 @@ export function Listings({
     return is;
   };
 
-  console.log('all',allListings);
+
+  const change = (e: any) => {
+    setInput(e.target.value as string)
+  }
 
   return (
     <Wrapper>
@@ -163,17 +179,59 @@ export function Listings({
       >
         <Ag>{title}</Ag>
       </h1>
+      <Stack direction="row" style={{
+        paddingTop: '1vh'
+      }}>
+        <Typography as="h1" id="demo-simple-select-label" style={{
+          marginTop: '2vh',
+          marginLeft: '1vh',
+          fontSize: '27px',
+          marginRight: '1vh',
+        }}>Filter names</Typography>
+        <Select
+          labelId="demo-simple-select-label"
+          id="demo-simple-select"
+          style={{
+            width: '40vw',
+            height: '8vh',
+            borderRadius: '15px'
+          }}
+          placeholder={category || "All"}
+          input={<BootstrapInput />}
+        >
+          <Link to="/listings"><MenuItem value={10}>All Names</MenuItem></Link>
+          <Link to="/listings/ftm"><MenuItem value={10}>.ftm Names</MenuItem></Link>
+          <Link to="/listings/0x"><MenuItem value={10}>0x Names</MenuItem></Link>
+          <Link to="/listings/single"><MenuItem value={10}>Single letter Names</MenuItem></Link>
+          <Link to="/listings/double"><MenuItem value={10}>Double letter Names</MenuItem></Link>
+          <Link to="/listings/triple"><MenuItem value={10}>Triple letter Names</MenuItem></Link>
+          <Link to="/listings/fortune500"><MenuItem value={10}>Fortune 500 Names</MenuItem></Link>
+        </Select>
+        <input style={{
+            width: '25vw',
+            marginRight: '2vw',
+            fontSize: '36px',
+            border: '1px solid #888888',
+            padding: '5px',
+            borderRadius: '15px',
+            marginLeft: '2vh',
+            paddingLeft: '20px',
+            background: 'transparent',
+          }}
+          value={input}
+          onChange={change}
+          placeholder='Search for a name'
+        />
+      </Stack>
       {/* \/ This maps the 5-split arrays */}
       <Stack direction="column">
         {/* @ts-ignore */}
         {allListings.map(function (item, index) {
-          console.log('Map#1:', item, index)
           /* \/ This maps the 5 in the split arrays */
           return (
             <Stack direction="row">
               {/* @ts-ignore */}
               {item.map(function (name, key) {
-                console.log('Map#2:', name, key)
                 return (
                   <Link to={`/name/${name}`}>
                     <Card height="40vh" width="45vh" darker={true}>

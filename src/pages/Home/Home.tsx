@@ -101,7 +101,7 @@ export function Home() {
             ) {
               return (
                 <Link to={`/name/${name}`}>
-                  <Card height="40vh" width="45vh" darker={true}>
+                  <Card height="40vh" width="45vh" darker={true} right={false}>
                     <h1 style={{ fontSize: "15px" }}>
                       This name is a {whatIs(name)}
                     </h1>

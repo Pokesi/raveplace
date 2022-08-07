@@ -111,7 +111,6 @@ export function Profile() {
                 <Link to={`/name/${name}`}>
                   <LinkButton>View</LinkButton>
                 </Link>
-                <LinkButton>Transfer</LinkButton>
               </Stack>
             </Card>
           ) : (

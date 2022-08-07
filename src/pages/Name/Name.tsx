@@ -37,7 +37,6 @@ const Wrapper = styled.div`
 `;
 
 const saveToStorage = (name: string) => {
-  console.log(name);
   if (typeof window.localStorage.getItem("names") !== "string") {
     window.localStorage.setItem("names", JSON.stringify([]));
   }
@@ -59,24 +58,32 @@ interface Listing {
   active: boolean;
 }
 
+interface Offer {
+  name: string;
+  value: number;
+  expireTimestamp: number;
+  active: boolean;
+  offeree: string;
+}
+
 export function Name() {
   const { signer, set } = useContext(WalletContext);
-  const [wallet, setWallet]: [any, any] = useState();
-  const [nameData, setNameData]: [RaveName | undefined, any] = useState();
-  const [contract, setContract]: [Contract | undefined, any] = useState(
+  const [ wallet, setWallet ]: [any, any] = useState();
+  const [ nameData, setNameData ]: [RaveName | undefined, any] = useState();
+  const [ contract, setContract ]: [Contract | undefined, any] = useState(
     c({
       signerOrProvider: signer,
       address: "0x1A8D16c2e9398BcD43DbE6Cb2d7aa846ce3D131d",
     })
   );
-  const [rave, setRave]: [Contract | undefined, any] = useState(
+  const [ rave, setRave ]: [Contract | undefined, any] = useState(
     r({
       signerOrProvider: signer,
       address: "0x6a403ffbbf8545ee0d99a63a72e5f335dfcae2bd",
     })
   )
   // was meant to be wallet but eh
-  const [owner, setOwner]: [string, any] = useState(""); // can be initialised as not undefined because we'll only use it in === operations
+  const [ owner, setOwner ]: [string, any] = useState(""); // can be initialised as not undefined because we'll only use it in === operations
   const { name } = useParams();
   const [ modals, setModals ]: [Modals, any] = useState({
     list: false,
@@ -87,6 +94,7 @@ export function Name() {
   const [ loading, setLoading ]: [boolean, any] = useState(false);
   const [ listed, setListed ]: [boolean, any] = useState(false);
   const [ listing, setListing ]: [Listing | undefined, any] = useState();
+  const [ offer, setOffer ]: [Offer | undefined, any] = useState();
 
   document.title = `RavePlace: ${name}`;
 
@@ -106,8 +114,11 @@ export function Name() {
       } else {
         setListed(false);
       }
+    }
+
+    const getOffer = async () => {
       // @ts-ignore
-      console.log(await contract.functions.isListed(name.toUpperCase()))
+      setOffer(await contract.functions.getOffer(name.toUpperCase()));
     }
 
     saveToStorage(name as string);
@@ -130,27 +141,8 @@ export function Name() {
       })
     );// need to create a new contract every time the signer updates
     getListing();
+    getOffer();
   }, [signer]);
-
-  console.log(nameData)
-
-  /*const getWallet = async() => {
-    let wallet: string | boolean;
-    if (signer._isSigner) {
-      wallet = signer.getAddress();
-    } else {
-      wallet = false;
-    }
-    return wallet || false;
-  }
-
-  useEffect(() => {
-    console.log('useEffect trigger');
-    console.log('',signer,'');
-    getWallet().then(res => {
-      setWallet(res);
-    });
-  }, [signer]);*/
 
   const whatIs = (name: string | boolean) => {
     let is = [];
@@ -184,6 +176,7 @@ export function Name() {
   //  if (wallet) ((new Rave()).reverse(wallet)).then(res => setName(res.name));
   // @ts-ignore
   const isOwner = (owner === ((typeof nameData != "undefined") ? nameData.owner : "0x0"));
+  const showOffer = ((typeof offer != "undefined") ? (offer.active && (~~(Date.now() / 1000)) < (offer.expireTimestamp as number)) : false);
 
   return (
     <Wrapper>
@@ -328,12 +321,31 @@ export function Name() {
                     fontSize: '31px',
                   }}>
                     {/* @ts-ignore MFW THIS SHIT*/}
-                    Price: {listing.value}
+                    Price: {(typeof listing !== 'undefined') ? parseInt(listing[0].value._hex) : "n/a"} FTM
                   </Typography>
                   <LinkButton onClick={() => {
                     // @ts-ignore MFW THIS SHIT
-                    contract.functions.buyName(name.toUpperCase(), owner, {value: ethers.utils.parseEther(listing.value.toString())});
+                    contract.functions.buyName(name.toUpperCase(), owner, {value: ethers.utils.parseEther(parseInt(listing[0].value._hex).toString())});
                   }}>Buy!</LinkButton>
+                </Stack>
+              </Card>}
+              {showOffer && <Card height="25vh" width="30.25vw">
+                <Typography as="h1" style={{
+                  fontSize: '42px'
+                }}>
+                  {name} has an Offer
+                </Typography>
+                <Stack direction="row">
+                  <Typography as="h1" style={{
+                    fontSize: '31px',
+                  }}>
+                    {/* @ts-ignore MFW THIS SHIT*/}
+                    Offered: {offer.value}
+                  </Typography>
+                  <LinkButton onClick={() => {
+                    // @ts-ignore MFW THIS SHIT
+                    contract.functions.acceptOffer(name.toUpperCase());
+                  }}>Accept!</LinkButton>
                 </Stack>
               </Card>}
               <Card height="25vh" width={listed ? "34vw" : "66vw"}>
